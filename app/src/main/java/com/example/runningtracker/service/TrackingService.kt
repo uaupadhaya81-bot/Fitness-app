@@ -1,5 +1,6 @@
 package com.example.runningtracker.service
 
+import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Notification
 import android.app.NotificationChannel
@@ -8,7 +9,9 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
+import android.location.GnssStatus
 import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
@@ -17,6 +20,7 @@ import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 import com.example.runningtracker.R
 import com.example.runningtracker.data.db.AppDatabase
 import com.example.runningtracker.data.filter.WeightedMovingAverageFilter
@@ -31,6 +35,15 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+
+data class LocationDiagnostics(
+    val hardwareModel: String = "Detecting...",
+    val activeProvider: String = "None",
+    val availableProviders: String = "Detecting...",
+    val satellitesVisible: Int = 0,
+    val satellitesUsed: Int = 0,
+    val isDualFrequencySupported: Boolean = false
+)
 
 class TrackingService : Service(), LocationListener {
 
@@ -63,6 +76,10 @@ class TrackingService : Service(), LocationListener {
     private val _currentLocation = MutableStateFlow<Location?>(null)
     val currentLocation: StateFlow<Location?> = _currentLocation
 
+    private val _diagnostics = MutableStateFlow(LocationDiagnostics())
+    val diagnostics: StateFlow<LocationDiagnostics> = _diagnostics
+    private var gnssCallback: GnssStatus.Callback? = null
+
     private val recordedTrackPoints = mutableListOf<TrackPointEntity>()
     private var lastLocation: Location? = null
     private var timerJob: Job? = null
@@ -77,6 +94,32 @@ class TrackingService : Service(), LocationListener {
         locationManager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
         cadenceDetector = CadenceDetector(this)
         createNotificationChannel()
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            gnssCallback = object : GnssStatus.Callback() {
+                override fun onSatelliteStatusChanged(status: GnssStatus) {
+                    var dualFreq = false
+                    var used = 0
+                    for (i in 0 until status.satelliteCount) {
+                        if (status.usedInFix(i)) used++
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            if (status.hasCarrierFrequencyHz(i)) {
+                                val freq = status.getCarrierFrequencyHz(i)
+                                // L5 signals run around 1176 MHz (1.176e9). L1 is around 1575 MHz.
+                                if (freq > 1.1e9f && freq < 1.3e9f) {
+                                    dualFreq = true
+                                }
+                            }
+                        }
+                    }
+                    _diagnostics.value = _diagnostics.value.copy(
+                        satellitesVisible = status.satelliteCount,
+                        satellitesUsed = used,
+                        isDualFrequencySupported = _diagnostics.value.isDualFrequencySupported || dualFreq
+                    )
+                }
+            }
+        }
     }
 
     override fun onBind(intent: Intent?): IBinder = binder
@@ -95,6 +138,22 @@ class TrackingService : Service(), LocationListener {
         val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
         wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "RunningTracker::WakeLock").apply {
             acquire(10 * 60 * 1000L)
+        }
+
+        // Pull Hardware Info
+        val providers = locationManager.getProviders(true).joinToString(", ")
+        var hardware = "Unknown"
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            hardware = locationManager.gnssHardwareModelName ?: "Unknown/Not Exposed"
+        }
+        _diagnostics.value = _diagnostics.value.copy(
+            hardwareModel = hardware,
+            availableProviders = providers
+        )
+
+        // Attach listeners
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            gnssCallback?.let { locationManager.registerGnssStatusCallback(it, null) }
         }
 
         if (locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)) {
@@ -138,6 +197,10 @@ class TrackingService : Service(), LocationListener {
         timerJob?.cancel()
         cadenceDetector.stop()
         locationManager.removeUpdates(this)
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            gnssCallback?.let { locationManager.unregisterGnssStatusCallback(it) }
+        }
 
         serviceScope.launch {
             if (currentRunId != 0L) {
@@ -174,6 +237,7 @@ class TrackingService : Service(), LocationListener {
 
     override fun onLocationChanged(location: Location) {
         _currentAccuracy.value = location.accuracy
+        _diagnostics.value = _diagnostics.value.copy(activeProvider = location.provider ?: "Unknown")
 
         val filtered = filter.filter(location) ?: return
         _currentLocation.value = filtered

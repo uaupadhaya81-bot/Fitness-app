@@ -4,3 +4,4 @@
 - Sped up GPS lock utilizing fallback Network_Provider & tuned tracking thresholds.
 - Removed Barometer dependency and UI (optimized for hardware like Redmi Note 10S) and applied Room Destructive Migration.
 - Fixed unresolved reference updateNotification compilation error.
+- Replaced fragile sed command with full robust layout XML update.

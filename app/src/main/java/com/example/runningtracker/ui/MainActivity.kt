@@ -1,6 +1,9 @@
 package com.example.runningtracker.ui
 
 import android.Manifest
+import android.app.AlertDialog
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -11,12 +14,15 @@ import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
 import android.widget.Button
+import android.widget.ImageButton
 import android.widget.TextView
+import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import com.example.runningtracker.R
+import com.example.runningtracker.service.LocationDiagnostics
 import com.example.runningtracker.service.TrackingService
 import com.example.runningtracker.service.TrackingState
 import com.google.android.material.floatingactionbutton.FloatingActionButton
@@ -56,6 +62,10 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tvTime: TextView
     private lateinit var tvPace: TextView
     private lateinit var tvCadence: TextView
+    private lateinit var btnInfo: ImageButton
+    
+    private var infoDialog: AlertDialog? = null
+    private var tvDialogContent: TextView? = null
 
     private lateinit var btnWarmUp: Button
     private lateinit var btnStart: Button
@@ -96,6 +106,7 @@ class MainActivity : AppCompatActivity() {
         tvTime = findViewById(R.id.tvTime)
         tvPace = findViewById(R.id.tvPace)
         tvCadence = findViewById(R.id.tvCadence)
+        btnInfo = findViewById(R.id.btnInfo)
 
         btnWarmUp = findViewById(R.id.btnWarmUp)
         btnStart = findViewById(R.id.btnStart)
@@ -114,11 +125,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        btnWarmUp.setOnClickListener {
-            checkPermissionsAndRun {
-                startAndBindService()
-            }
-        }
+        btnWarmUp.setOnClickListener { checkPermissionsAndRun { startAndBindService() } }
 
         btnStart.setOnClickListener {
             if (trackingService?.trackingState?.value == TrackingState.RUNNING) {
@@ -147,15 +154,57 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        btnOfflineMaps.setOnClickListener {
-            startActivity(Intent(this, OfflineMapActivity::class.java))
+        btnOfflineMaps.setOnClickListener { startActivity(Intent(this, OfflineMapActivity::class.java)) }
+        
+        btnInfo.setOnClickListener { openDiagnosticDialog() }
+    }
+    
+    private fun openDiagnosticDialog() {
+        val builder = AlertDialog.Builder(this)
+        builder.setTitle("GNSS & Hardware Diagnostics")
+        
+        val tv = TextView(this)
+        tv.setPadding(50, 40, 50, 40)
+        tv.setTextColor(Color.parseColor("#333333"))
+        tv.textSize = 15f
+        tvDialogContent = tv
+        
+        builder.setView(tv)
+        builder.setPositiveButton("Close", null)
+        builder.setNeutralButton("Copy") { _, _ ->
+            val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            val clip = ClipData.newPlainText("GNSS Stats", tv.text)
+            clipboard.setPrimaryClip(clip)
+            Toast.makeText(this, "Copied to clipboard", Toast.LENGTH_SHORT).show()
         }
+        
+        infoDialog = builder.create()
+        infoDialog?.setOnDismissListener {
+            infoDialog = null
+            tvDialogContent = null
+        }
+        infoDialog?.show()
+        
+        updateDialogContent(trackingService?.diagnostics?.value)
+    }
+    
+    private fun updateDialogContent(diag: LocationDiagnostics?) {
+        if (diag == null) return
+        val text = """
+            Hardware Model: ${diag.hardwareModel}
+            Active Provider: ${diag.activeProvider.uppercase()}
+            Enabled Providers: ${diag.availableProviders}
+            
+            Satellites Visible: ${diag.satellitesVisible}
+            Satellites Used: ${diag.satellitesUsed}
+            Dual-Frequency (L5): ${if (diag.isDualFrequencySupported) "Supported & Detected" else "Not Detected / Single-Freq"}
+        """.trimIndent()
+        tvDialogContent?.text = text
     }
 
     private fun setupRouteLayer(style: Style) {
         routeSource = GeoJsonSource("route-source", Feature.fromGeometry(LineString.fromLngLats(routePoints)))
         style.addSource(routeSource!!)
-
         val lineLayer = LineLayer("route-layer", "route-source").apply {
             setProperties(
                 PropertyFactory.lineColor(Color.parseColor("#0284C7")),
@@ -165,7 +214,6 @@ class MainActivity : AppCompatActivity() {
             )
         }
         style.addLayer(lineLayer)
-        
         enableLocationComponent(style)
     }
 
@@ -180,16 +228,13 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun updatePolyline() {
-        routeSource?.setGeoJson(Feature.fromGeometry(LineString.fromLngLats(routePoints)))
-    }
+    private fun updatePolyline() { routeSource?.setGeoJson(Feature.fromGeometry(LineString.fromLngLats(routePoints))) }
 
     private fun startAndBindService() {
         val intent = Intent(this, TrackingService::class.java)
         startService(intent)
         bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)
         trackingService?.startWarmUp()
-        
         mapLibreMap?.style?.let { enableLocationComponent(it) }
     }
 
@@ -213,13 +258,12 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
-
+        
         lifecycleScope.launch {
-            service.totalDistanceMeters.collectLatest { dist ->
-                tvDistance.text = String.format("%.2f km", dist / 1000.0)
-            }
+            service.diagnostics.collectLatest { diag -> updateDialogContent(diag) }
         }
 
+        lifecycleScope.launch { service.totalDistanceMeters.collectLatest { tvDistance.text = String.format("%.2f km", it / 1000.0) } }
         lifecycleScope.launch {
             service.durationMillis.collectLatest { millis ->
                 val sec = (millis / 1000) % 60
@@ -228,31 +272,17 @@ class MainActivity : AppCompatActivity() {
                 tvTime.text = if (hr > 0) String.format("%02d:%02d:%02d", hr, min, sec) else String.format("%02d:%02d", min, sec)
             }
         }
-
         lifecycleScope.launch {
             service.currentPaceSecPerKm.collectLatest { secPerKm ->
-                if (secPerKm <= 0.0 || secPerKm > 3600.0) {
-                    tvPace.text = "--:--"
-                } else {
-                    val min = (secPerKm / 60).toInt()
-                    val sec = (secPerKm % 60).toInt()
-                    tvPace.text = String.format("%d:%02d", min, sec)
-                }
+                tvPace.text = if (secPerKm <= 0.0 || secPerKm > 3600.0) "--:--" else String.format("%d:%02d", (secPerKm / 60).toInt(), (secPerKm % 60).toInt())
             }
         }
-
-        lifecycleScope.launch {
-            service.currentCadence.collectLatest { spm ->
-                tvCadence.text = "$spm spm"
-            }
-        }
-
+        lifecycleScope.launch { service.currentCadence.collectLatest { tvCadence.text = "$it spm" } }
         lifecycleScope.launch {
             service.currentLocation.collectLatest { loc ->
                 loc?.let {
                     if (service.trackingState.value == TrackingState.RUNNING) {
-                        val point = Point.fromLngLat(it.longitude, it.latitude)
-                        routePoints.add(point)
+                        routePoints.add(Point.fromLngLat(it.longitude, it.latitude))
                         updatePolyline()
                     }
                 }
@@ -261,23 +291,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun checkPermissionsAndRun(onGranted: () -> Unit) {
-        val permissions = mutableListOf(
-            Manifest.permission.ACCESS_FINE_LOCATION,
-            Manifest.permission.ACCESS_COARSE_LOCATION
-        )
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            permissions.add(Manifest.permission.POST_NOTIFICATIONS)
-        }
-
-        val notGranted = permissions.filter {
-            ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
-        }
-
-        if (notGranted.isEmpty()) {
-            onGranted()
-        } else {
-            permissionLauncher.launch(permissions.toTypedArray())
-        }
+        val permissions = mutableListOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) permissions.add(Manifest.permission.POST_NOTIFICATIONS)
+        if (permissions.filter { ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED }.isEmpty()) onGranted() 
+        else permissionLauncher.launch(permissions.toTypedArray())
     }
 
     override fun onStart() { super.onStart(); mapView.onStart() }
@@ -288,10 +305,7 @@ class MainActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         mapView.onDestroy()
-        if (isBound) {
-            unbindService(serviceConnection)
-            isBound = false
-        }
+        if (isBound) { unbindService(serviceConnection); isBound = false }
     }
     override fun onSaveInstanceState(outState: Bundle) { super.onSaveInstanceState(outState); mapView.onSaveInstanceState(outState) }
 }
