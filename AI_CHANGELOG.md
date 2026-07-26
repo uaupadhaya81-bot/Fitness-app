@@ -1,0 +1,1 @@
+- Initialized modular running tracker baseline: Room entities & DAOs, WMA GPS filter, Cadence/Barometer trackers, Android 14 location foreground service, GPX/TCX exporters, and UI shell.

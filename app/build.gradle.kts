@@ -15,7 +15,6 @@ android {
         versionCode = 1
         versionName = "1.0"
 
-        // Restrict native binaries to ARM64 only (drastically reduces APK size)
         ndk {
             abiFilters.add("arm64-v8a")
         }
@@ -41,6 +40,10 @@ dependencies {
     implementation("androidx.appcompat:appcompat:1.6.1")
     implementation("com.google.android.material:material:1.11.0")
     implementation("androidx.constraintlayout:constraintlayout:2.1.4")
+
+    // Lifecycle & Activity KTX for Coroutine Flow collection & permission contracts
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")
+    implementation("androidx.activity:activity-ktx:1.8.2")
 
     // Room Database for offline storage
     val roomVersion = "2.6.1"
