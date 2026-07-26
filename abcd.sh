@@ -1,11 +1,11 @@
 #!/bin/bash
 
-# 1. Create the necessary directory structure
+# 1. Create directory structure
 mkdir -p app/src/main/java/com/example/runningtracker
 mkdir -p app/src/main/res/layout
 mkdir -p app/src/main/res/values
 
-# 2. Create the root settings.gradle.kts
+# 2. Create settings.gradle.kts
 cat << 'EOF' > settings.gradle.kts
 pluginManagement {
     repositories {
@@ -25,13 +25,13 @@ rootProject.name = "Running Tracker"
 include(":app")
 EOF
 
-# 3. Create gradle.properties (CRITICAL FIX FOR ANDROIDX)
+# 3. Create gradle.properties (Enables AndroidX support)
 cat << 'EOF' > gradle.properties
 android.useAndroidX=true
 android.nonTransitiveRClass=true
 EOF
 
-# 4. Create the root build.gradle.kts (Updated Versions)
+# 4. Create root build.gradle.kts
 cat << 'EOF' > build.gradle.kts
 plugins {
     id("com.android.application") version "8.5.2" apply false
@@ -39,7 +39,7 @@ plugins {
 }
 EOF
 
-# 5. Create the app-level build.gradle.kts
+# 5. Create app/build.gradle.kts
 cat << 'EOF' > app/build.gradle.kts
 plugins {
     id("com.android.application")
@@ -80,18 +80,18 @@ dependencies {
     implementation("com.google.android.material:material:1.11.0")
     implementation("androidx.constraintlayout:constraintlayout:2.1.4")
 
-    // Room Database for offline coordinate/metric storage
+    // Room Database for offline storage
     val roomVersion = "2.6.1"
     implementation("androidx.room:room-runtime:$roomVersion")
     implementation("androidx.room:room-ktx:$roomVersion")
     kapt("androidx.room:room-compiler:$roomVersion")
 
-    // MapLibre for offline vector map rendering
+    // MapLibre for offline vector rendering
     implementation("org.maplibre.gl:android-sdk:10.2.0")
 }
 EOF
 
-# 6. Create AndroidManifest.xml
+# 6. Create AndroidManifest.xml (Removed missing mipmap icon references)
 cat << 'EOF' > app/src/main/AndroidManifest.xml
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
@@ -104,9 +104,7 @@ cat << 'EOF' > app/src/main/AndroidManifest.xml
 
     <application
         android:allowBackup="true"
-        android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
-        android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.AppCompat.Light.NoActionBar">
         
