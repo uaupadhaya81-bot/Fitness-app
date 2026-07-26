@@ -1,1 +1,1 @@
-- Initialized modular running tracker baseline: Room entities & DAOs, WMA GPS filter, Cadence/Barometer trackers, Android 14 location foreground service, GPX/TCX exporters, and UI shell.
+- Upgraded MapLibre Android SDK to v11.13.5 with unified org.maplibre.* and org.maplibre.geojson.* package namespaces.

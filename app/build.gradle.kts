@@ -41,16 +41,16 @@ dependencies {
     implementation("com.google.android.material:material:1.11.0")
     implementation("androidx.constraintlayout:constraintlayout:2.1.4")
 
-    // Lifecycle & Activity KTX for Coroutine Flow collection & permission contracts
+    // Lifecycle & Activity KTX
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")
     implementation("androidx.activity:activity-ktx:1.8.2")
 
-    // Room Database for offline storage
+    // Room Database
     val roomVersion = "2.6.1"
     implementation("androidx.room:room-runtime:$roomVersion")
     implementation("androidx.room:room-ktx:$roomVersion")
     kapt("androidx.room:room-compiler:$roomVersion")
 
-    // MapLibre for offline vector rendering
-    implementation("org.maplibre.gl:android-sdk:10.2.0")
+    // MapLibre Vector Map Engine
+    implementation("org.maplibre.gl:android-sdk:11.13.5")
 }
