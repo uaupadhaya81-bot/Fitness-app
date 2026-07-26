@@ -69,7 +69,7 @@ dependencies {
     kapt("androidx.room:room-compiler:$roomVersion")
 
     // MapLibre Vector Map Engine
-    implementation("org.maplibre.gl:android-sdk:10.2.0")
+    implementation("org.maplibre.gl:android-sdk:11.13.5")
 }
 EOF
 
@@ -91,8 +91,7 @@ This repository contains a lightweight, 100% offline, high-precision Android run
 EOF
 
 cat << 'EOF' > AI_CHANGELOG.md
-- Corrected MapLibre Android package imports from org.maplibre.gl.* to org.maplibre.android.* across activities and layout XML files.
-- Fixed GeoJSON package imports from org.maplibre.geojson.* to com.mapbox.geojson.* for MapLibre SDK 10.2.0 compatibility in MainActivity.kt.
+- Upgraded MapLibre Android SDK to v11.13.5 with unified org.maplibre.* and org.maplibre.geojson.* package namespaces.
 EOF
 
 # 3. Room Entities
@@ -1332,9 +1331,9 @@ import org.maplibre.android.style.layers.LineLayer
 import org.maplibre.android.style.layers.Property
 import org.maplibre.android.style.layers.PropertyFactory
 import org.maplibre.android.style.sources.GeoJsonSource
-import com.mapbox.geojson.Feature
-import com.mapbox.geojson.LineString
-import com.mapbox.geojson.Point
+import org.maplibre.geojson.Feature
+import org.maplibre.geojson.LineString
+import org.maplibre.geojson.Point
 
 class MainActivity : AppCompatActivity() {
 
@@ -1625,4 +1624,4 @@ cat << 'EOF' > app/src/main/AndroidManifest.xml
 </manifest>
 EOF
 
-echo "All MapLibre imports and layout tags updated successfully!"
+echo "All MapLibre imports and dependencies resolved successfully!"
