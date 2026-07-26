@@ -22,7 +22,6 @@ import com.example.runningtracker.data.db.AppDatabase
 import com.example.runningtracker.data.filter.WeightedMovingAverageFilter
 import com.example.runningtracker.data.model.RunEntity
 import com.example.runningtracker.data.model.TrackPointEntity
-import com.example.runningtracker.sensor.BarometerElevationTracker
 import com.example.runningtracker.sensor.CadenceDetector
 import com.example.runningtracker.ui.MainActivity
 import kotlinx.coroutines.CoroutineScope
@@ -42,7 +41,6 @@ class TrackingService : Service(), LocationListener {
 
     private val filter = WeightedMovingAverageFilter()
     private lateinit var cadenceDetector: CadenceDetector
-    private lateinit var barometerTracker: BarometerElevationTracker
 
     private val _trackingState = MutableStateFlow(TrackingState.IDLE)
     val trackingState: StateFlow<TrackingState> = _trackingState
@@ -62,9 +60,6 @@ class TrackingService : Service(), LocationListener {
     private val _currentCadence = MutableStateFlow(0)
     val currentCadence: StateFlow<Int> = _currentCadence
 
-    private val _currentElevation = MutableStateFlow(0.0)
-    val currentElevation: StateFlow<Double> = _currentElevation
-
     private val _currentLocation = MutableStateFlow<Location?>(null)
     val currentLocation: StateFlow<Location?> = _currentLocation
 
@@ -81,7 +76,6 @@ class TrackingService : Service(), LocationListener {
         super.onCreate()
         locationManager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
         cadenceDetector = CadenceDetector(this)
-        barometerTracker = BarometerElevationTracker(this)
         createNotificationChannel()
     }
 
@@ -103,13 +97,12 @@ class TrackingService : Service(), LocationListener {
             acquire(10 * 60 * 1000L)
         }
 
+        if (locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)) {
+            locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 1000L, 0f, this)
+        }
+        
         if (locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
-            locationManager.requestLocationUpdates(
-                LocationManager.GPS_PROVIDER,
-                1000L,
-                0f,
-                this
-            )
+            locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 1000L, 0f, this)
         }
     }
 
@@ -127,7 +120,6 @@ class TrackingService : Service(), LocationListener {
 
             _trackingState.value = TrackingState.RUNNING
             cadenceDetector.start()
-            barometerTracker.start()
             startTimer()
             updateNotification("Run in Progress")
         }
@@ -145,7 +137,6 @@ class TrackingService : Service(), LocationListener {
         _trackingState.value = TrackingState.STOPPED
         timerJob?.cancel()
         cadenceDetector.stop()
-        barometerTracker.stop()
         locationManager.removeUpdates(this)
 
         serviceScope.launch {
@@ -177,7 +168,6 @@ class TrackingService : Service(), LocationListener {
                 delay(1000L)
                 _durationMillis.value += 1000L
                 _currentCadence.value = cadenceDetector.currentCadenceSpm
-                _currentElevation.value = barometerTracker.currentRelativeElevationMeters
             }
         }
     }
@@ -185,10 +175,10 @@ class TrackingService : Service(), LocationListener {
     override fun onLocationChanged(location: Location) {
         _currentAccuracy.value = location.accuracy
 
-        if (_trackingState.value == TrackingState.RUNNING) {
-            val filtered = filter.filter(location) ?: return
-            _currentLocation.value = filtered
+        val filtered = filter.filter(location) ?: return
+        _currentLocation.value = filtered
 
+        if (_trackingState.value == TrackingState.RUNNING) {
             if (filtered.hasSpeed() && filtered.speed < 0.5f) {
                 return
             }
@@ -216,7 +206,6 @@ class TrackingService : Service(), LocationListener {
                         altitude = filtered.altitude,
                         accuracy = filtered.accuracy,
                         speed = filtered.speed,
-                        relativeElevation = barometerTracker.currentRelativeElevationMeters,
                         cadence = cadenceDetector.currentCadenceSpm
                     )
                 )

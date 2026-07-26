@@ -1,1 +1,6 @@
 - Upgraded MapLibre Android SDK to v11.13.5 with unified org.maplibre.* and org.maplibre.geojson.* package namespaces.
+- Refactored Offline Maps with custom touch bounding-box logic.
+- Enabled MapLibre LocationComponent for live blue dot representation and auto-tracking.
+- Sped up GPS lock utilizing fallback Network_Provider & tuned tracking thresholds.
+- Removed Barometer dependency and UI (optimized for hardware like Redmi Note 10S) and applied Room Destructive Migration.
+- Fixed unresolved reference updateNotification compilation error.

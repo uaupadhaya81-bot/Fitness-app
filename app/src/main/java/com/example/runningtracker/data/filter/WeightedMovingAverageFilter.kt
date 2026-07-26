@@ -8,8 +8,8 @@ class WeightedMovingAverageFilter(private val windowSize: Int = 5) {
     private val window: LinkedList<Location> = LinkedList()
 
     fun filter(location: Location): Location? {
-        if (location.accuracy > 30.0f) {
-            return null
+        if (location.accuracy > 50.0f) {
+            return location 
         }
 
         window.addLast(location)

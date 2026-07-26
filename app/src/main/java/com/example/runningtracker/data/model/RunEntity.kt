@@ -13,7 +13,5 @@ data class RunEntity(
     var durationMillis: Long = 0,
     var avgPaceSecPerKm: Double = 0.0,
     var maxPaceSecPerKm: Double = 0.0,
-    var avgCadenceSpm: Int = 0,
-    var elevationGainMeters: Double = 0.0,
-    var elevationLossMeters: Double = 0.0
+    var avgCadenceSpm: Int = 0
 )

@@ -27,6 +27,5 @@ data class TrackPointEntity(
     val altitude: Double,
     val accuracy: Float,
     val speed: Float,
-    val relativeElevation: Double,
     val cadence: Int
 )

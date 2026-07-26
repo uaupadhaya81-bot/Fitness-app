@@ -26,6 +26,9 @@ import org.maplibre.android.MapLibre
 import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.android.geometry.LatLng
+import org.maplibre.android.location.LocationComponentActivationOptions
+import org.maplibre.android.location.modes.CameraMode
+import org.maplibre.android.location.modes.RenderMode
 import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.Style
@@ -53,7 +56,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tvTime: TextView
     private lateinit var tvPace: TextView
     private lateinit var tvCadence: TextView
-    private lateinit var tvElevation: TextView
 
     private lateinit var btnWarmUp: Button
     private lateinit var btnStart: Button
@@ -94,7 +96,6 @@ class MainActivity : AppCompatActivity() {
         tvTime = findViewById(R.id.tvTime)
         tvPace = findViewById(R.id.tvPace)
         tvCadence = findViewById(R.id.tvCadence)
-        tvElevation = findViewById(R.id.tvElevation)
 
         btnWarmUp = findViewById(R.id.btnWarmUp)
         btnStart = findViewById(R.id.btnStart)
@@ -138,8 +139,11 @@ class MainActivity : AppCompatActivity() {
         }
 
         btnRecenter.setOnClickListener {
-            trackingService?.currentLocation?.value?.let { loc ->
-                mapLibreMap?.animateCamera(CameraUpdateFactory.newLatLngZoom(LatLng(loc.latitude, loc.longitude), 16.0))
+            val map = mapLibreMap ?: return@setOnClickListener
+            val loc = trackingService?.currentLocation?.value ?: map.locationComponent.lastKnownLocation
+            if (loc != null) {
+                map.animateCamera(CameraUpdateFactory.newLatLngZoom(LatLng(loc.latitude, loc.longitude), 16.0))
+                map.locationComponent.cameraMode = CameraMode.TRACKING
             }
         }
 
@@ -161,6 +165,19 @@ class MainActivity : AppCompatActivity() {
             )
         }
         style.addLayer(lineLayer)
+        
+        enableLocationComponent(style)
+    }
+
+    private fun enableLocationComponent(style: Style) {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+            mapLibreMap?.locationComponent?.let { locationComponent ->
+                val options = LocationComponentActivationOptions.builder(this, style).build()
+                locationComponent.activateLocationComponent(options)
+                locationComponent.isLocationComponentEnabled = true
+                locationComponent.renderMode = RenderMode.COMPASS
+            }
+        }
     }
 
     private fun updatePolyline() {
@@ -172,6 +189,8 @@ class MainActivity : AppCompatActivity() {
         startService(intent)
         bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)
         trackingService?.startWarmUp()
+        
+        mapLibreMap?.style?.let { enableLocationComponent(it) }
     }
 
     private fun observeService() {
@@ -180,7 +199,7 @@ class MainActivity : AppCompatActivity() {
         lifecycleScope.launch {
             service.trackingState.collectLatest { state ->
                 tvStatus.text = "STATUS: ${state.name}"
-                btnStart.isEnabled = (state == TrackingState.ACQUIRING_SIGNAL && service.currentAccuracy.value < 10.0f) || state == TrackingState.RUNNING || state == TrackingState.PAUSED
+                btnStart.isEnabled = (state == TrackingState.ACQUIRING_SIGNAL && service.currentAccuracy.value <= 30.0f) || state == TrackingState.RUNNING || state == TrackingState.PAUSED
                 btnStart.text = if (state == TrackingState.RUNNING) "Pause Run" else "Start Run"
                 btnStop.isEnabled = state == TrackingState.RUNNING || state == TrackingState.PAUSED
             }
@@ -190,7 +209,7 @@ class MainActivity : AppCompatActivity() {
             service.currentAccuracy.collectLatest { accuracy ->
                 tvAccuracy.text = String.format("GPS: %.1fm", accuracy)
                 if (service.trackingState.value == TrackingState.ACQUIRING_SIGNAL) {
-                    btnStart.isEnabled = accuracy < 10.0f
+                    btnStart.isEnabled = accuracy <= 30.0f
                 }
             }
         }
@@ -229,18 +248,13 @@ class MainActivity : AppCompatActivity() {
         }
 
         lifecycleScope.launch {
-            service.currentElevation.collectLatest { elev ->
-                tvElevation.text = String.format("%+.0fm", elev)
-            }
-        }
-
-        lifecycleScope.launch {
             service.currentLocation.collectLatest { loc ->
                 loc?.let {
-                    val point = Point.fromLngLat(it.longitude, it.latitude)
-                    routePoints.add(point)
-                    updatePolyline()
-                    mapLibreMap?.animateCamera(CameraUpdateFactory.newLatLng(LatLng(it.latitude, it.longitude)))
+                    if (service.trackingState.value == TrackingState.RUNNING) {
+                        val point = Point.fromLngLat(it.longitude, it.latitude)
+                        routePoints.add(point)
+                        updatePolyline()
+                    }
                 }
             }
         }
