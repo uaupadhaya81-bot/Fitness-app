@@ -25,15 +25,21 @@ rootProject.name = "Running Tracker"
 include(":app")
 EOF
 
-# 3. Create the root build.gradle.kts
+# 3. Create gradle.properties (CRITICAL FIX FOR ANDROIDX)
+cat << 'EOF' > gradle.properties
+android.useAndroidX=true
+android.nonTransitiveRClass=true
+EOF
+
+# 4. Create the root build.gradle.kts (Updated Versions)
 cat << 'EOF' > build.gradle.kts
 plugins {
-    id("com.android.application") version "8.1.0" apply false
-    id("org.jetbrains.kotlin.android") version "1.9.0" apply false
+    id("com.android.application") version "8.5.2" apply false
+    id("org.jetbrains.kotlin.android") version "1.9.24" apply false
 }
 EOF
 
-# 4. Create the app-level build.gradle.kts with Room and MapLibre dependencies
+# 5. Create the app-level build.gradle.kts
 cat << 'EOF' > app/build.gradle.kts
 plugins {
     id("com.android.application")
@@ -85,7 +91,7 @@ dependencies {
 }
 EOF
 
-# 5. Create a basic AndroidManifest.xml requiring necessary hardware permissions
+# 6. Create AndroidManifest.xml
 cat << 'EOF' > app/src/main/AndroidManifest.xml
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
@@ -109,14 +115,9 @@ cat << 'EOF' > app/src/main/AndroidManifest.xml
 </manifest>
 EOF
 
-# 6. Create the strings.xml file
+# 7. Create strings.xml
 cat << 'EOF' > app/src/main/res/values/strings.xml
 <resources>
     <string name="app_name">Running Tracker</string>
 </resources>
-EOF
-
-# 7. Create basic local.properties to prevent build warnings
-cat << 'EOF' > local.properties
-# Local build properties
 EOF
