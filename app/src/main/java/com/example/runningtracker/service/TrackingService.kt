@@ -13,11 +13,11 @@ import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.location.GnssStatus
 import android.location.Location
-import android.location.LocationListener
 import android.location.LocationManager
 import android.os.Binder
 import android.os.Build
 import android.os.IBinder
+import android.os.Looper
 import android.os.PowerManager
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
@@ -28,6 +28,12 @@ import com.example.runningtracker.data.model.RunEntity
 import com.example.runningtracker.data.model.TrackPointEntity
 import com.example.runningtracker.sensor.CadenceDetector
 import com.example.runningtracker.ui.MainActivity
+import com.google.android.gms.location.FusedLocationProviderClient
+import com.google.android.gms.location.LocationCallback
+import com.google.android.gms.location.LocationRequest
+import com.google.android.gms.location.LocationResult
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -45,10 +51,12 @@ data class LocationDiagnostics(
     val isDualFrequencySupported: Boolean = false
 )
 
-class TrackingService : Service(), LocationListener {
+class TrackingService : Service() {
 
     private val binder = LocalBinder()
     private lateinit var locationManager: LocationManager
+    private lateinit var fusedLocationClient: FusedLocationProviderClient
+    private lateinit var locationCallback: LocationCallback
     private var wakeLock: PowerManager.WakeLock? = null
     private val serviceScope = CoroutineScope(Dispatchers.IO + Job())
 
@@ -92,8 +100,17 @@ class TrackingService : Service(), LocationListener {
     override fun onCreate() {
         super.onCreate()
         locationManager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
+        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
         cadenceDetector = CadenceDetector(this)
         createNotificationChannel()
+
+        locationCallback = object : LocationCallback() {
+            override fun onLocationResult(locationResult: LocationResult) {
+                for (location in locationResult.locations) {
+                    processLocation(location)
+                }
+            }
+        }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             gnssCallback = object : GnssStatus.Callback() {
@@ -105,7 +122,6 @@ class TrackingService : Service(), LocationListener {
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                             if (status.hasCarrierFrequencyHz(i)) {
                                 val freq = status.getCarrierFrequencyHz(i)
-                                // L5 signals run around 1176 MHz (1.176e9). L1 is around 1575 MHz.
                                 if (freq > 1.1e9f && freq < 1.3e9f) {
                                     dualFreq = true
                                 }
@@ -140,7 +156,7 @@ class TrackingService : Service(), LocationListener {
             acquire(10 * 60 * 1000L)
         }
 
-        // Pull Hardware Info
+        // Pull Hardware Info using native LocationManager
         val providers = locationManager.getProviders(true).joinToString(", ")
         var hardware = "Unknown"
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
@@ -151,18 +167,21 @@ class TrackingService : Service(), LocationListener {
             availableProviders = providers
         )
 
-        // Attach listeners
+        // Attach native GNSS listener for diagnostics
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             gnssCallback?.let { locationManager.registerGnssStatusCallback(it, null) }
         }
 
-        if (locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)) {
-            locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 1000L, 0f, this)
-        }
-        
-        if (locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
-            locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 1000L, 0f, this)
-        }
+        // Start Google Fused Location Tracking
+        val locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 1000L)
+            .setMinUpdateIntervalMillis(1000L)
+            .build()
+            
+        fusedLocationClient.requestLocationUpdates(
+            locationRequest,
+            locationCallback,
+            Looper.getMainLooper()
+        )
     }
 
     fun startRun() {
@@ -196,8 +215,9 @@ class TrackingService : Service(), LocationListener {
         _trackingState.value = TrackingState.STOPPED
         timerJob?.cancel()
         cadenceDetector.stop()
-        locationManager.removeUpdates(this)
         
+        // Unregister both Fused and native listeners
+        fusedLocationClient.removeLocationUpdates(locationCallback)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             gnssCallback?.let { locationManager.unregisterGnssStatusCallback(it) }
         }
@@ -235,9 +255,9 @@ class TrackingService : Service(), LocationListener {
         }
     }
 
-    override fun onLocationChanged(location: Location) {
+    private fun processLocation(location: Location) {
         _currentAccuracy.value = location.accuracy
-        _diagnostics.value = _diagnostics.value.copy(activeProvider = location.provider ?: "Unknown")
+        _diagnostics.value = _diagnostics.value.copy(activeProvider = location.provider ?: "fused")
 
         val filtered = filter.filter(location) ?: return
         _currentLocation.value = filtered

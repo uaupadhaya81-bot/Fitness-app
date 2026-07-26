@@ -191,9 +191,10 @@ class MainActivity : AppCompatActivity() {
     private fun updateDialogContent(diag: LocationDiagnostics?) {
         if (diag == null) return
         val text = """
+            Location Engine: Google Fused Location API
             Hardware Model: ${diag.hardwareModel}
-            Active Provider: ${diag.activeProvider.uppercase()}
-            Enabled Providers: ${diag.availableProviders}
+            Active Provider Stream: ${diag.activeProvider.uppercase()}
+            System Enabled Providers: ${diag.availableProviders}
             
             Satellites Visible: ${diag.satellitesVisible}
             Satellites Used: ${diag.satellitesUsed}

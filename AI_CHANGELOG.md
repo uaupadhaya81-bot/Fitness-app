@@ -5,3 +5,6 @@
 - Removed Barometer dependency and UI (optimized for hardware like Redmi Note 10S) and applied Room Destructive Migration.
 - Fixed unresolved reference updateNotification compilation error.
 - Replaced fragile sed command with full robust layout XML update.
+- Migrated location engine to Google Fused Location API.
+- Added play-services-location dependency.
+- Updated diagnostics UI to reflect Fused engine status.

@@ -53,4 +53,7 @@ dependencies {
 
     // MapLibre Vector Map Engine
     implementation("org.maplibre.gl:android-sdk:11.13.5")
+
+    // Google Play Services: Fused Location API
+    implementation("com.google.android.gms:play-services-location:21.2.0")
 }
