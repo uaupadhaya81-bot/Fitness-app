@@ -36,7 +36,7 @@
             android:id="@+id/tvAccuracy"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="GPS: --m"
+            android:text="LOC: --m"
             android:textColor="#94A3B8"
             android:textSize="14sp" />
 
@@ -197,7 +197,7 @@
             android:layout_width="match_parent"
             android:layout_height="54dp"
             android:backgroundTint="#0284C7"
-            android:text="Acquire GPS Warmup"
+            android:text="Acquire Location Warmup"
             android:textColor="#FFFFFF"
             android:textSize="15sp"
             android:textStyle="bold" />

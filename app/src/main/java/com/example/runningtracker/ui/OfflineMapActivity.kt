@@ -26,6 +26,12 @@ import org.maplibre.android.offline.OfflineRegion
 import org.maplibre.android.offline.OfflineRegionError
 import org.maplibre.android.offline.OfflineRegionStatus
 import org.maplibre.android.offline.OfflineTilePyramidRegionDefinition
+import org.maplibre.android.geometry.LatLng
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.core.content.ContextCompat
+import org.maplibre.android.location.LocationComponentActivationOptions
+import org.maplibre.android.location.modes.RenderMode
 
 class OfflineMapActivity : AppCompatActivity() {
 
@@ -88,8 +94,15 @@ class OfflineMapActivity : AppCompatActivity() {
 
         mapView.getMapAsync { map ->
             mapLibreMap = map
-            map.cameraPosition = CameraPosition.Builder().zoom(12.0).build()
-            map.setStyle(Style.Builder().fromUri("https://tiles.openfreemap.org/styles/bright"))
+            val lat = intent.getDoubleExtra("LAT", 0.0)
+            val lng = intent.getDoubleExtra("LNG", 0.0)
+            val zoom = intent.getDoubleExtra("ZOOM", 12.0)
+            val cameraBuilder = CameraPosition.Builder().zoom(zoom)
+            if (lat != 0.0 || lng != 0.0) cameraBuilder.target(LatLng(lat, lng))
+            map.cameraPosition = cameraBuilder.build()
+            map.setStyle(Style.Builder().fromUri("https://tiles.openfreemap.org/styles/bright")) { style ->
+                enableLocationComponent(style)
+            }
         }
 
         btnDrawMode.setOnClickListener {
@@ -213,4 +226,15 @@ class OfflineMapActivity : AppCompatActivity() {
     override fun onLowMemory() { super.onLowMemory(); mapView.onLowMemory() }
     override fun onDestroy() { super.onDestroy(); mapView.onDestroy() }
     override fun onSaveInstanceState(outState: Bundle) { super.onSaveInstanceState(outState); mapView.onSaveInstanceState(outState) }
+
+    private fun enableLocationComponent(style: Style) {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+            mapLibreMap?.locationComponent?.let { locationComponent ->
+                val options = LocationComponentActivationOptions.builder(this, style).build()
+                locationComponent.activateLocationComponent(options)
+                locationComponent.isLocationComponentEnabled = true
+                locationComponent.renderMode = RenderMode.COMPASS
+            }
+        }
+    }
 }

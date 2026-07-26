@@ -149,12 +149,20 @@ class MainActivity : AppCompatActivity() {
             val map = mapLibreMap ?: return@setOnClickListener
             val loc = trackingService?.currentLocation?.value ?: map.locationComponent.lastKnownLocation
             if (loc != null) {
-                map.animateCamera(CameraUpdateFactory.newLatLngZoom(LatLng(loc.latitude, loc.longitude), 16.0))
+                map.animateCamera(CameraUpdateFactory.newLatLngZoom(LatLng(loc.latitude, loc.longitude), 16.5), 1000)
                 map.locationComponent.cameraMode = CameraMode.TRACKING
             }
         }
 
-        btnOfflineMaps.setOnClickListener { startActivity(Intent(this, OfflineMapActivity::class.java)) }
+        btnOfflineMaps.setOnClickListener {
+            val intent = Intent(this, OfflineMapActivity::class.java)
+            mapLibreMap?.cameraPosition?.let {
+                intent.putExtra("LAT", it.target?.latitude ?: 0.0)
+                intent.putExtra("LNG", it.target?.longitude ?: 0.0)
+                intent.putExtra("ZOOM", it.zoom)
+            }
+            startActivity(intent)
+        }
         
         btnInfo.setOnClickListener { openDiagnosticDialog() }
     }
@@ -253,7 +261,7 @@ class MainActivity : AppCompatActivity() {
 
         lifecycleScope.launch {
             service.currentAccuracy.collectLatest { accuracy ->
-                tvAccuracy.text = String.format("GPS: %.1fm", accuracy)
+                tvAccuracy.text = String.format("LOC: %.1fm", accuracy)
                 if (service.trackingState.value == TrackingState.ACQUIRING_SIGNAL) {
                     btnStart.isEnabled = accuracy <= 30.0f
                 }

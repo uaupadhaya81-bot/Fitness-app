@@ -144,7 +144,7 @@ class TrackingService : Service() {
     fun startWarmUp() {
         _trackingState.value = TrackingState.ACQUIRING_SIGNAL
         
-        val notification = buildNotification("Acquiring GPS Signal...")
+        val notification = buildNotification("Acquiring Location Signal...")
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION)
         } else {
