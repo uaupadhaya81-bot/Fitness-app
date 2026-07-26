@@ -91,8 +91,8 @@ This repository contains a lightweight, 100% offline, high-precision Android run
 EOF
 
 cat << 'EOF' > AI_CHANGELOG.md
-- Implemented Offline Map Downloader UI (`OfflineMapActivity`) with MapLibre `OfflineManager` region downloader up to zoom 16.
-- Overhauled UI to modern floating card layout with live Pace, Duration, Cadence, Elevation, and Route Polyline updates.
+- Fixed AAPT resource linking errors by converting MapLibre XML attributes to programmatic setup and correcting FloatingActionButton app namespace properties.
+- Added Offline Map Downloader UI (`OfflineMapActivity`) with MapLibre `OfflineManager` region downloader.
 EOF
 
 # 3. Room Entities
@@ -830,7 +830,7 @@ EOF
 cat << 'EOF' > app/src/main/res/layout/activity_main.xml
 <?xml version="1.0" encoding="utf-8"?>
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:mapbox="http://schemas.android.com/apk/res-auto"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="#0F172A">
@@ -839,8 +839,7 @@ cat << 'EOF' > app/src/main/res/layout/activity_main.xml
     <org.maplibre.gl.maps.MapView
         android:id="@+id/mapView"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        mapbox:mapbox_cameraZoom="16" />
+        android:layout_height="match_parent" />
 
     <!-- Top Status Bar Overlay -->
     <LinearLayout
@@ -888,9 +887,9 @@ cat << 'EOF' > app/src/main/res/layout/activity_main.xml
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:contentDescription="Download Offline Maps"
-            mapbox:backgroundTint="#1E293B"
-            mapbox:tint="#FFFFFF"
-            mapbox:srcCompat="@android:drawable/ic_menu_mapmode" />
+            app:backgroundTint="#1E293B"
+            app:tint="#FFFFFF"
+            app:srcCompat="@android:drawable/ic_menu_mapmode" />
 
         <com.google.android.material.floatingactionbutton.FloatingActionButton
             android:id="@+id/btnRecenter"
@@ -898,9 +897,9 @@ cat << 'EOF' > app/src/main/res/layout/activity_main.xml
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
             android:contentDescription="Recenter Map"
-            mapbox:backgroundTint="#1E293B"
-            mapbox:tint="#FFFFFF"
-            mapbox:srcCompat="@android:drawable/ic_menu_mylocation" />
+            app:backgroundTint="#1E293B"
+            app:tint="#FFFFFF"
+            app:srcCompat="@android:drawable/ic_menu_mylocation" />
     </LinearLayout>
 
     <!-- Floating Telemetry Glassmorphism Card -->
@@ -1094,7 +1093,7 @@ EOF
 cat << 'EOF' > app/src/main/res/layout/activity_offline_map.xml
 <?xml version="1.0" encoding="utf-8"?>
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:mapbox="http://schemas.android.com/apk/res-auto"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="#0F172A">
@@ -1102,8 +1101,7 @@ cat << 'EOF' > app/src/main/res/layout/activity_offline_map.xml
     <org.maplibre.gl.maps.MapView
         android:id="@+id/offlineMapView"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        mapbox:mapbox_cameraZoom="12" />
+        android:layout_height="match_parent" />
 
     <!-- Center Region Bounding Box Overlay -->
     <View
@@ -1175,6 +1173,7 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.example.runningtracker.R
 import org.maplibre.gl.MapLibre
+import org.maplibre.gl.camera.CameraPosition
 import org.maplibre.gl.maps.MapView
 import org.maplibre.gl.maps.MapLibreMap
 import org.maplibre.gl.maps.Style
@@ -1206,6 +1205,7 @@ class OfflineMapActivity : AppCompatActivity() {
 
         mapView.getMapAsync { map ->
             mapLibreMap = map
+            map.cameraPosition = CameraPosition.Builder().zoom(12.0).build()
             map.setStyle(Style.Builder().fromUri("https://tiles.openfreemap.org/styles/bright"))
         }
 
@@ -1322,6 +1322,7 @@ import com.google.android.material.floatingactionbutton.FloatingActionButton
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import org.maplibre.gl.MapLibre
+import org.maplibre.gl.camera.CameraPosition
 import org.maplibre.gl.camera.CameraUpdateFactory
 import org.maplibre.gl.geometry.LatLng
 import org.maplibre.gl.maps.MapView
@@ -1405,6 +1406,7 @@ class MainActivity : AppCompatActivity() {
 
         mapView.getMapAsync { map ->
             mapLibreMap = map
+            map.cameraPosition = CameraPosition.Builder().zoom(16.0).build()
             map.setStyle(Style.Builder().fromUri("https://tiles.openfreemap.org/styles/bright")) { style ->
                 setupRouteLayer(style)
             }
@@ -1623,4 +1625,4 @@ cat << 'EOF' > app/src/main/AndroidManifest.xml
 </manifest>
 EOF
 
-echo "Full UI modernization & Offline Map Downloader integrated successfully!"
+echo "All AAPT resource errors resolved and codebase updated successfully!"
