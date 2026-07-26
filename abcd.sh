@@ -91,8 +91,7 @@ This repository contains a lightweight, 100% offline, high-precision Android run
 EOF
 
 cat << 'EOF' > AI_CHANGELOG.md
-- Fixed AAPT resource linking errors by converting MapLibre XML attributes to programmatic setup and correcting FloatingActionButton app namespace properties.
-- Added Offline Map Downloader UI (`OfflineMapActivity`) with MapLibre `OfflineManager` region downloader.
+- Corrected MapLibre Android package imports from org.maplibre.gl.* to org.maplibre.android.* across activities and layout XML files.
 EOF
 
 # 3. Room Entities
@@ -836,7 +835,7 @@ cat << 'EOF' > app/src/main/res/layout/activity_main.xml
     android:background="#0F172A">
 
     <!-- Map Canvas -->
-    <org.maplibre.gl.maps.MapView
+    <org.maplibre.android.maps.MapView
         android:id="@+id/mapView"
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
@@ -1098,7 +1097,7 @@ cat << 'EOF' > app/src/main/res/layout/activity_offline_map.xml
     android:layout_height="match_parent"
     android:background="#0F172A">
 
-    <org.maplibre.gl.maps.MapView
+    <org.maplibre.android.maps.MapView
         android:id="@+id/offlineMapView"
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
@@ -1172,16 +1171,16 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.example.runningtracker.R
-import org.maplibre.gl.MapLibre
-import org.maplibre.gl.camera.CameraPosition
-import org.maplibre.gl.maps.MapView
-import org.maplibre.gl.maps.MapLibreMap
-import org.maplibre.gl.maps.Style
-import org.maplibre.gl.offline.OfflineManager
-import org.maplibre.gl.offline.OfflineRegion
-import org.maplibre.gl.offline.OfflineRegionObserver
-import org.maplibre.gl.offline.OfflineRegionStatus
-import org.maplibre.gl.offline.OfflineTilePyramidRegionDefinition
+import org.maplibre.android.MapLibre
+import org.maplibre.android.camera.CameraPosition
+import org.maplibre.android.maps.MapView
+import org.maplibre.android.maps.MapLibreMap
+import org.maplibre.android.maps.Style
+import org.maplibre.android.offline.OfflineManager
+import org.maplibre.android.offline.OfflineRegion
+import org.maplibre.android.offline.OfflineRegionError
+import org.maplibre.android.offline.OfflineRegionStatus
+import org.maplibre.android.offline.OfflineTilePyramidRegionDefinition
 
 class OfflineMapActivity : AppCompatActivity() {
 
@@ -1239,7 +1238,7 @@ class OfflineMapActivity : AppCompatActivity() {
         val offlineManager = OfflineManager.getInstance(this)
         offlineManager.createOfflineRegion(definition, metadata, object : OfflineManager.CreateOfflineRegionCallback {
             override fun onCreate(offlineRegion: OfflineRegion) {
-                offlineRegion.setObserver(object : OfflineRegionObserver {
+                offlineRegion.setObserver(object : OfflineRegion.OfflineRegionObserver {
                     override fun onStatusChanged(status: OfflineRegionStatus) {
                         val percentage = if (status.requiredResourceCount > 0) {
                             (100.0 * status.completedResourceCount / status.requiredResourceCount).toInt()
@@ -1260,10 +1259,10 @@ class OfflineMapActivity : AppCompatActivity() {
                         }
                     }
 
-                    override fun onError(error: org.maplibre.gl.offline.OfflineRegionError) {
+                    override fun onError(error: OfflineRegionError) {
                         runOnUiThread {
                             btnDownload.isEnabled = true
-                            tvStatus.text = "Download error: ${error.message}"
+                            tvStatus.text = "Download error: ${error.reason}"
                         }
                     }
 
@@ -1321,17 +1320,17 @@ import com.example.runningtracker.service.TrackingState
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
-import org.maplibre.gl.MapLibre
-import org.maplibre.gl.camera.CameraPosition
-import org.maplibre.gl.camera.CameraUpdateFactory
-import org.maplibre.gl.geometry.LatLng
-import org.maplibre.gl.maps.MapView
-import org.maplibre.gl.maps.MapLibreMap
-import org.maplibre.gl.maps.Style
-import org.maplibre.gl.style.layers.LineLayer
-import org.maplibre.gl.style.layers.Property
-import org.maplibre.gl.style.layers.PropertyFactory
-import org.maplibre.gl.style.sources.GeoJsonSource
+import org.maplibre.android.MapLibre
+import org.maplibre.android.camera.CameraPosition
+import org.maplibre.android.camera.CameraUpdateFactory
+import org.maplibre.android.geometry.LatLng
+import org.maplibre.android.maps.MapView
+import org.maplibre.android.maps.MapLibreMap
+import org.maplibre.android.maps.Style
+import org.maplibre.android.style.layers.LineLayer
+import org.maplibre.android.style.layers.Property
+import org.maplibre.android.style.layers.PropertyFactory
+import org.maplibre.android.style.sources.GeoJsonSource
 import org.maplibre.geojson.Feature
 import org.maplibre.geojson.LineString
 import org.maplibre.geojson.Point
@@ -1625,4 +1624,4 @@ cat << 'EOF' > app/src/main/AndroidManifest.xml
 </manifest>
 EOF
 
-echo "All AAPT resource errors resolved and codebase updated successfully!"
+echo "All MapLibre imports and layout tags updated successfully!"
