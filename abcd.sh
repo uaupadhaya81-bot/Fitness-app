@@ -61,7 +61,7 @@ data class TrackPointEntity(
 )
 EOF
 
-# 4. Update Database for Destructive Migration (prevents crash after removing columns)
+# 4. Update Database for Destructive Migration
 cat << 'EOF' > app/src/main/java/com/example/runningtracker/data/db/AppDatabase.kt
 package com.example.runningtracker.data.db
 
@@ -103,7 +103,7 @@ abstract class AppDatabase : RoomDatabase() {
 }
 EOF
 
-# 5. Fix Moving Average Filter (allow UI to update even if accuracy is low)
+# 5. Fix Moving Average Filter
 cat << 'EOF' > app/src/main/java/com/example/runningtracker/data/filter/WeightedMovingAverageFilter.kt
 package com.example.runningtracker.data.filter
 
@@ -116,7 +116,7 @@ class WeightedMovingAverageFilter(private val windowSize: Int = 5) {
 
     fun filter(location: Location): Location? {
         if (location.accuracy > 50.0f) {
-            return location // Allow raw locations through so UI updates during warmup
+            return location 
         }
 
         window.addLast(location)
@@ -152,7 +152,7 @@ class WeightedMovingAverageFilter(private val windowSize: Int = 5) {
 }
 EOF
 
-# 6. Update TrackingService (Network Provider + No Barometer)
+# 6. Update TrackingService (WITH updateNotification fix)
 cat << 'EOF' > app/src/main/java/com/example/runningtracker/service/TrackingService.kt
 package com.example.runningtracker.service
 
@@ -398,6 +398,11 @@ class TrackingService : Service(), LocationListener {
             .build()
     }
 
+    private fun updateNotification(text: String) {
+        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        notificationManager.notify(NOTIFICATION_ID, buildNotification(text))
+    }
+
     companion object {
         private const val CHANNEL_ID = "running_tracker_channel"
         private const val NOTIFICATION_ID = 1001
@@ -405,7 +410,7 @@ class TrackingService : Service(), LocationListener {
 }
 EOF
 
-# 7. Update Main Activity Layout (Remove Elevation UI)
+# 7. Update Main Activity Layout 
 cat << 'EOF' > app/src/main/res/layout/activity_main.xml
 <?xml version="1.0" encoding="utf-8"?>
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
@@ -639,7 +644,7 @@ cat << 'EOF' > app/src/main/res/layout/activity_main.xml
 </RelativeLayout>
 EOF
 
-# 8. Update MainActivity.kt (LocationComponent, Fix panning bug)
+# 8. Update MainActivity.kt
 cat << 'EOF' > app/src/main/java/com/example/runningtracker/ui/MainActivity.kt
 package com.example.runningtracker.ui
 
@@ -940,7 +945,7 @@ class MainActivity : AppCompatActivity() {
 }
 EOF
 
-# 9. Update OfflineMapActivity XML (Drawing Mode Buttons)
+# 9. Update OfflineMapActivity XML
 cat << 'EOF' > app/src/main/res/layout/activity_offline_map.xml
 <?xml version="1.0" encoding="utf-8"?>
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
@@ -1022,7 +1027,7 @@ cat << 'EOF' > app/src/main/res/layout/activity_offline_map.xml
 </RelativeLayout>
 EOF
 
-# 10. Update OfflineMapActivity Kotlin (Touch Draw Logic)
+# 10. Update OfflineMapActivity Kotlin
 cat << 'EOF' > app/src/main/java/com/example/runningtracker/ui/OfflineMapActivity.kt
 package com.example.runningtracker.ui
 
@@ -1247,5 +1252,6 @@ echo "- Refactored Offline Maps with custom touch bounding-box logic." >> AI_CHA
 echo "- Enabled MapLibre LocationComponent for live blue dot representation and auto-tracking." >> AI_CHANGELOG.md
 echo "- Sped up GPS lock utilizing fallback Network_Provider & tuned tracking thresholds." >> AI_CHANGELOG.md
 echo "- Removed Barometer dependency and UI (optimized for hardware like Redmi Note 10S) and applied Room Destructive Migration." >> AI_CHANGELOG.md
+echo "- Fixed unresolved reference updateNotification compilation error." >> AI_CHANGELOG.md
 
 echo "All AI patches applied successfully!"
