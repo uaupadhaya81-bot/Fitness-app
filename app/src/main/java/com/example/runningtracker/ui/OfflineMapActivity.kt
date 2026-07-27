@@ -1,6 +1,8 @@
 package com.example.runningtracker.ui
 
+import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
@@ -14,24 +16,22 @@ import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import com.example.runningtracker.R
 import org.maplibre.android.MapLibre
 import org.maplibre.android.camera.CameraPosition
+import org.maplibre.android.geometry.LatLng
 import org.maplibre.android.geometry.LatLngBounds
-import org.maplibre.android.maps.MapView
+import org.maplibre.android.location.LocationComponentActivationOptions
+import org.maplibre.android.location.modes.RenderMode
 import org.maplibre.android.maps.MapLibreMap
+import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.Style
 import org.maplibre.android.offline.OfflineManager
 import org.maplibre.android.offline.OfflineRegion
 import org.maplibre.android.offline.OfflineRegionError
 import org.maplibre.android.offline.OfflineRegionStatus
 import org.maplibre.android.offline.OfflineTilePyramidRegionDefinition
-import org.maplibre.android.geometry.LatLng
-import android.Manifest
-import android.content.pm.PackageManager
-import androidx.core.content.ContextCompat
-import org.maplibre.android.location.LocationComponentActivationOptions
-import org.maplibre.android.location.modes.RenderMode
 
 class OfflineMapActivity : AppCompatActivity() {
 
@@ -45,6 +45,7 @@ class OfflineMapActivity : AppCompatActivity() {
 
     private var selectionBounds: LatLngBounds? = null
     private var isDrawingMode = false
+    private var passedStyleUrl: String = ""
 
     inner class SelectionView(context: Context) : View(context) {
         var startX = -1f
@@ -86,6 +87,8 @@ class OfflineMapActivity : AppCompatActivity() {
 
         mapView = findViewById(R.id.offlineMapView)
         mapView.onCreate(savedInstanceState)
+        
+        passedStyleUrl = intent.getStringExtra("STYLE_URL") ?: MainActivity.STREET_STYLE
 
         selectionView = SelectionView(this)
         val mapParent = mapView.parent as ViewGroup
@@ -100,7 +103,8 @@ class OfflineMapActivity : AppCompatActivity() {
             val cameraBuilder = CameraPosition.Builder().zoom(zoom)
             if (lat != 0.0 || lng != 0.0) cameraBuilder.target(LatLng(lat, lng))
             map.cameraPosition = cameraBuilder.build()
-            map.setStyle(Style.Builder().fromUri("https://tiles.openfreemap.org/styles/bright")) { style ->
+            
+            map.setStyle(Style.Builder().fromUri(passedStyleUrl)) { style ->
                 enableLocationComponent(style)
             }
         }
@@ -155,13 +159,14 @@ class OfflineMapActivity : AppCompatActivity() {
         val minZoom = map.cameraPosition.zoom.coerceAtMost(12.0)
         val maxZoom = 16.0
         val pixelRatio = resources.displayMetrics.density
-        val styleUrl = "https://tiles.openfreemap.org/styles/bright"
 
+        // Requesting download using the exact style URL the user selected
         val definition = OfflineTilePyramidRegionDefinition(
-            styleUrl, bounds, minZoom, maxZoom, pixelRatio
+            passedStyleUrl, bounds, minZoom, maxZoom, pixelRatio
         )
 
-        val metadata = "Custom Box Region".toByteArray(Charsets.UTF_8)
+        val mapTypeName = if(passedStyleUrl.contains("satellite")) "Satellite" else "Street"
+        val metadata = "$mapTypeName Custom Box Region".toByteArray(Charsets.UTF_8)
 
         btnDownload.isEnabled = false
         btnDrawMode.isEnabled = false
@@ -179,7 +184,7 @@ class OfflineMapActivity : AppCompatActivity() {
 
                         runOnUiThread {
                             progressDownload.progress = percentage
-                            tvStatus.text = "Downloading: $percentage% (${status.completedResourceCount}/${status.requiredResourceCount})"
+                            tvStatus.text = "Downloading $mapTypeName: $percentage% (${status.completedResourceCount}/${status.requiredResourceCount})"
                         }
 
                         if (status.isComplete) {

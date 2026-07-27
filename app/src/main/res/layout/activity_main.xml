@@ -10,63 +10,41 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
-    <LinearLayout
-        android:id="@+id/topBar"
-        android:layout_width="match_parent"
+    <!-- Modern Rounded GPS Status Button -->
+    <TextView
+        android:id="@+id/btnGpsAccuracy"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:layout_alignParentStart="true"
         android:layout_alignParentTop="true"
         android:layout_margin="16dp"
-        android:background="@drawable/card_background"
+        android:background="@drawable/bg_rounded_gps"
         android:elevation="8dp"
-        android:gravity="center_vertical"
-        android:orientation="horizontal"
-        android:padding="12dp">
+        android:paddingHorizontal="16dp"
+        android:paddingVertical="10dp"
+        android:text="--m"
+        android:textColor="#FFFFFF"
+        android:textSize="14sp"
+        android:textStyle="bold" />
 
-        <TextView
-            android:id="@+id/tvStatus"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="STATUS: IDLE"
-            android:textColor="#38BDF8"
-            android:textSize="14sp"
-            android:textStyle="bold" />
-
-        <TextView
-            android:id="@+id/tvAccuracy"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="LOC: --m"
-            android:textColor="#94A3B8"
-            android:textSize="14sp" />
-
-        <ImageButton
-            android:id="@+id/btnInfo"
-            android:layout_width="24dp"
-            android:layout_height="24dp"
-            android:layout_marginStart="8dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:src="@android:drawable/ic_dialog_info"
-            app:tint="#94A3B8" />
-    </LinearLayout>
-
+    <!-- Map Options & Recenter -->
     <LinearLayout
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_below="@id/topBar"
+        android:layout_alignParentTop="true"
         android:layout_alignParentEnd="true"
-        android:layout_marginEnd="16dp"
+        android:layout_margin="16dp"
         android:elevation="8dp"
         android:orientation="vertical">
 
         <com.google.android.material.floatingactionbutton.FloatingActionButton
-            android:id="@+id/btnOfflineMaps"
+            android:id="@+id/btnMapOptions"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:contentDescription="Download Offline Maps"
+            android:contentDescription="Map Options"
             app:backgroundTint="#1E293B"
-            app:tint="#FFFFFF"
-            app:srcCompat="@android:drawable/ic_menu_mapmode" />
+            app:srcCompat="@android:drawable/ic_menu_mapmode"
+            app:tint="#FFFFFF" />
 
         <com.google.android.material.floatingactionbutton.FloatingActionButton
             android:id="@+id/btnRecenter"
@@ -75,8 +53,8 @@
             android:layout_marginTop="12dp"
             android:contentDescription="Recenter Map"
             app:backgroundTint="#1E293B"
-            app:tint="#FFFFFF"
-            app:srcCompat="@android:drawable/ic_menu_mylocation" />
+            app:srcCompat="@android:drawable/ic_menu_mylocation"
+            app:tint="#FFFFFF" />
     </LinearLayout>
 
     <LinearLayout
@@ -178,7 +156,6 @@
                     android:textSize="18sp"
                     android:textStyle="bold" />
             </LinearLayout>
-
         </LinearLayout>
     </LinearLayout>
 
@@ -233,7 +210,6 @@
                 android:textColor="#FFFFFF"
                 android:textSize="15sp"
                 android:textStyle="bold" />
-
         </LinearLayout>
     </LinearLayout>
 

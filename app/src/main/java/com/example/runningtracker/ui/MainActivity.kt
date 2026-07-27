@@ -9,12 +9,12 @@ import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
 import android.content.pm.PackageManager
+import android.content.res.ColorStateList
 import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
 import android.widget.Button
-import android.widget.ImageButton
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
@@ -45,6 +45,7 @@ import org.maplibre.android.style.sources.GeoJsonSource
 import org.maplibre.geojson.Feature
 import org.maplibre.geojson.LineString
 import org.maplibre.geojson.Point
+import java.io.File
 
 class MainActivity : AppCompatActivity() {
 
@@ -56,13 +57,11 @@ class MainActivity : AppCompatActivity() {
     private var routeSource: GeoJsonSource? = null
     private val routePoints = mutableListOf<Point>()
 
-    private lateinit var tvStatus: TextView
-    private lateinit var tvAccuracy: TextView
+    private lateinit var btnGpsAccuracy: TextView
     private lateinit var tvDistance: TextView
     private lateinit var tvTime: TextView
     private lateinit var tvPace: TextView
     private lateinit var tvCadence: TextView
-    private lateinit var btnInfo: ImageButton
     
     private var infoDialog: AlertDialog? = null
     private var tvDialogContent: TextView? = null
@@ -71,7 +70,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnStart: Button
     private lateinit var btnStop: Button
     private lateinit var btnRecenter: FloatingActionButton
-    private lateinit var btnOfflineMaps: FloatingActionButton
+    private lateinit var btnMapOptions: FloatingActionButton
+    
+    private var currentStyleUrl: String = STREET_STYLE
 
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -100,19 +101,17 @@ class MainActivity : AppCompatActivity() {
         MapLibre.getInstance(this)
         setContentView(R.layout.activity_main)
 
-        tvStatus = findViewById(R.id.tvStatus)
-        tvAccuracy = findViewById(R.id.tvAccuracy)
+        btnGpsAccuracy = findViewById(R.id.btnGpsAccuracy)
         tvDistance = findViewById(R.id.tvDistance)
         tvTime = findViewById(R.id.tvTime)
         tvPace = findViewById(R.id.tvPace)
         tvCadence = findViewById(R.id.tvCadence)
-        btnInfo = findViewById(R.id.btnInfo)
 
         btnWarmUp = findViewById(R.id.btnWarmUp)
         btnStart = findViewById(R.id.btnStart)
         btnStop = findViewById(R.id.btnStop)
         btnRecenter = findViewById(R.id.btnRecenter)
-        btnOfflineMaps = findViewById(R.id.btnOfflineMaps)
+        btnMapOptions = findViewById(R.id.btnMapOptions)
 
         mapView = findViewById(R.id.mapView)
         mapView.onCreate(savedInstanceState)
@@ -120,9 +119,7 @@ class MainActivity : AppCompatActivity() {
         mapView.getMapAsync { map ->
             mapLibreMap = map
             map.cameraPosition = CameraPosition.Builder().zoom(16.0).build()
-            map.setStyle(Style.Builder().fromUri("https://tiles.openfreemap.org/styles/bright")) { style ->
-                setupRouteLayer(style)
-            }
+            changeMapStyle(currentStyleUrl)
         }
 
         btnWarmUp.setOnClickListener { checkPermissionsAndRun { startAndBindService() } }
@@ -143,6 +140,9 @@ class MainActivity : AppCompatActivity() {
             }
             routePoints.clear()
             updatePolyline()
+            
+            btnGpsAccuracy.backgroundTintList = ColorStateList.valueOf(Color.parseColor(COLOR_RED))
+            btnGpsAccuracy.text = "--m"
         }
 
         btnRecenter.setOnClickListener {
@@ -154,17 +154,42 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        btnOfflineMaps.setOnClickListener {
-            val intent = Intent(this, OfflineMapActivity::class.java)
-            mapLibreMap?.cameraPosition?.let {
-                intent.putExtra("LAT", it.target?.latitude ?: 0.0)
-                intent.putExtra("LNG", it.target?.longitude ?: 0.0)
-                intent.putExtra("ZOOM", it.zoom)
-            }
-            startActivity(intent)
-        }
+        btnMapOptions.setOnClickListener { showMapOptionsDialog() }
         
-        btnInfo.setOnClickListener { openDiagnosticDialog() }
+        btnGpsAccuracy.setOnClickListener { openDiagnosticDialog() }
+        btnGpsAccuracy.backgroundTintList = ColorStateList.valueOf(Color.parseColor(COLOR_RED))
+    }
+    
+    private fun showMapOptionsDialog() {
+        val options = arrayOf("🗺️ Street Map", "🛰️ Satellite Map", "⬇️ Download Offline Region")
+        AlertDialog.Builder(this)
+            .setTitle("Map Options")
+            .setItems(options) { _, which ->
+                when (which) {
+                    0 -> changeMapStyle(STREET_STYLE)
+                    1 -> changeMapStyle(getSatelliteStyleUrl(this))
+                    2 -> launchOfflineMapActivity()
+                }
+            }
+            .show()
+    }
+    
+    private fun changeMapStyle(url: String) {
+        currentStyleUrl = url
+        mapLibreMap?.setStyle(Style.Builder().fromUri(url)) { style ->
+            setupRouteLayer(style)
+        }
+    }
+    
+    private fun launchOfflineMapActivity() {
+        val intent = Intent(this, OfflineMapActivity::class.java)
+        mapLibreMap?.cameraPosition?.let {
+            intent.putExtra("LAT", it.target?.latitude ?: 0.0)
+            intent.putExtra("LNG", it.target?.longitude ?: 0.0)
+            intent.putExtra("ZOOM", it.zoom)
+        }
+        intent.putExtra("STYLE_URL", currentStyleUrl)
+        startActivity(intent)
     }
     
     private fun openDiagnosticDialog() {
@@ -212,17 +237,25 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupRouteLayer(style: Style) {
-        routeSource = GeoJsonSource("route-source", Feature.fromGeometry(LineString.fromLngLats(routePoints)))
-        style.addSource(routeSource!!)
-        val lineLayer = LineLayer("route-layer", "route-source").apply {
-            setProperties(
-                PropertyFactory.lineColor(Color.parseColor("#0284C7")),
-                PropertyFactory.lineWidth(7f),
-                PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
-                PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND)
-            )
+        if (style.getSource("route-source") == null) {
+            routeSource = GeoJsonSource("route-source", Feature.fromGeometry(LineString.fromLngLats(routePoints)))
+            style.addSource(routeSource!!)
+        } else {
+            routeSource = style.getSourceAs("route-source")
+            updatePolyline()
         }
-        style.addLayer(lineLayer)
+
+        if (style.getLayer("route-layer") == null) {
+            val lineLayer = LineLayer("route-layer", "route-source").apply {
+                setProperties(
+                    PropertyFactory.lineColor(Color.parseColor("#0284C7")),
+                    PropertyFactory.lineWidth(7f),
+                    PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
+                    PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND)
+                )
+            }
+            style.addLayer(lineLayer)
+        }
         enableLocationComponent(style)
     }
 
@@ -252,16 +285,18 @@ class MainActivity : AppCompatActivity() {
 
         lifecycleScope.launch {
             service.trackingState.collectLatest { state ->
-                tvStatus.text = "STATUS: ${state.name}"
                 btnStart.isEnabled = (state == TrackingState.ACQUIRING_SIGNAL && service.currentAccuracy.value <= 30.0f) || state == TrackingState.RUNNING || state == TrackingState.PAUSED
                 btnStart.text = if (state == TrackingState.RUNNING) "Pause Run" else "Start Run"
                 btnStop.isEnabled = state == TrackingState.RUNNING || state == TrackingState.PAUSED
+                
+                val statusColor = if (state == TrackingState.IDLE || state == TrackingState.STOPPED) COLOR_RED else COLOR_GREEN
+                btnGpsAccuracy.backgroundTintList = ColorStateList.valueOf(Color.parseColor(statusColor))
             }
         }
 
         lifecycleScope.launch {
             service.currentAccuracy.collectLatest { accuracy ->
-                tvAccuracy.text = String.format("LOC: %.1fm", accuracy)
+                btnGpsAccuracy.text = "${accuracy.toInt()}m"
                 if (service.trackingState.value == TrackingState.ACQUIRING_SIGNAL) {
                     btnStart.isEnabled = accuracy <= 30.0f
                 }
@@ -317,4 +352,36 @@ class MainActivity : AppCompatActivity() {
         if (isBound) { unbindService(serviceConnection); isBound = false }
     }
     override fun onSaveInstanceState(outState: Bundle) { super.onSaveInstanceState(outState); mapView.onSaveInstanceState(outState) }
+
+    companion object {
+        const val STREET_STYLE = "https://tiles.openfreemap.org/styles/bright"
+        const val COLOR_RED = "#DC2626"
+        const val COLOR_GREEN = "#16A34A"
+
+        fun getSatelliteStyleUrl(context: Context): String {
+            val file = File(context.cacheDir, "satellite_style.json")
+            if (!file.exists()) {
+                file.writeText("""
+                    {
+                      "version": 8,
+                      "sources": {
+                        "esri-satellite": {
+                          "type": "raster",
+                          "tiles": ["https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"],
+                          "tileSize": 256
+                        }
+                      },
+                      "layers": [{
+                        "id": "satellite-layer",
+                        "type": "raster",
+                        "source": "esri-satellite",
+                        "minzoom": 0,
+                        "maxzoom": 22
+                      }]
+                    }
+                """.trimIndent())
+            }
+            return "file://${file.absolutePath}"
+        }
+    }
 }
