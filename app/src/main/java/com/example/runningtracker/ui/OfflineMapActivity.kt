@@ -3,6 +3,7 @@ package com.example.runningtracker.ui
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
+import android.content.res.ColorStateList
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
@@ -46,6 +47,9 @@ class OfflineMapActivity : AppCompatActivity() {
     private var selectionBounds: LatLngBounds? = null
     private var isDrawingMode = false
     private var passedStyleUrl: String = ""
+    
+    // Queue to hold the map styles we want to download
+    private val downloadQueue = mutableListOf<String>()
 
     inner class SelectionView(context: Context) : View(context) {
         var startX = -1f
@@ -110,12 +114,18 @@ class OfflineMapActivity : AppCompatActivity() {
         }
 
         btnDrawMode.setOnClickListener {
-            isDrawingMode = true
-            tvStatus.text = "Drag your finger to draw a box."
-            selectionView.startX = -1f
-            selectionView.endX = -1f
-            selectionView.invalidate()
-            btnDownload.isEnabled = false
+            if (btnDrawMode.text == "Draw Box") {
+                isDrawingMode = true
+                btnDrawMode.text = "Cancel"
+                btnDrawMode.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#DC2626")) // Red
+                tvStatus.text = "Drag your finger to draw a box."
+                selectionView.startX = -1f
+                selectionView.endX = -1f
+                selectionView.invalidate()
+                btnDownload.isEnabled = false
+            } else {
+                resetDrawMode()
+            }
         }
 
         selectionView.setOnTouchListener { _, event ->
@@ -135,43 +145,84 @@ class OfflineMapActivity : AppCompatActivity() {
                     selectionView.invalidate()
                 }
                 MotionEvent.ACTION_UP -> {
-                    isDrawingMode = false
-                    val map = mapLibreMap
-                    if (map != null) {
-                        val pt1 = map.projection.fromScreenLocation(PointF(selectionView.startX, selectionView.startY))
-                        val pt2 = map.projection.fromScreenLocation(PointF(selectionView.endX, selectionView.endY))
-                        selectionBounds = LatLngBounds.Builder().include(pt1).include(pt2).build()
-                        tvStatus.text = "Region mapped! Press Download."
-                        btnDownload.isEnabled = true
+                    // Check if they actually drew a box, not just a tap
+                    if (Math.abs(selectionView.startX - selectionView.endX) > 20) {
+                        isDrawingMode = false // Release the map back to the user so they can pan!
+                        btnDrawMode.text = "Clear Box"
+                        btnDrawMode.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#F59E0B")) // Amber
+                        
+                        val map = mapLibreMap
+                        if (map != null) {
+                            val pt1 = map.projection.fromScreenLocation(PointF(selectionView.startX, selectionView.startY))
+                            val pt2 = map.projection.fromScreenLocation(PointF(selectionView.endX, selectionView.endY))
+                            selectionBounds = LatLngBounds.Builder().include(pt1).include(pt2).build()
+                            tvStatus.text = "Region mapped! Press Download to save both maps."
+                            btnDownload.isEnabled = true
+                        }
+                    } else {
+                        resetDrawMode()
                     }
                 }
             }
             true
         }
 
-        btnDownload.setOnClickListener { downloadVisibleRegion() }
+        btnDownload.setOnClickListener { startDualDownload() }
+    }
+    
+    private fun resetDrawMode() {
+        isDrawingMode = false
+        selectionBounds = null
+        selectionView.startX = -1f
+        selectionView.endX = -1f
+        selectionView.invalidate()
+        btnDrawMode.text = "Draw Box"
+        btnDrawMode.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#475569")) // Gray
+        btnDownload.isEnabled = false
+        tvStatus.text = "Tap 'Draw Box' then drag your finger on the map."
     }
 
-    private fun downloadVisibleRegion() {
+    private fun startDualDownload() {
         val map = mapLibreMap ?: return
         val bounds = selectionBounds ?: return
+        
+        btnDownload.isEnabled = false
+        btnDrawMode.isEnabled = false
+        progressDownload.visibility = View.VISIBLE
         
         val minZoom = map.cameraPosition.zoom.coerceAtMost(12.0)
         val maxZoom = 16.0
         val pixelRatio = resources.displayMetrics.density
 
-        // Requesting download using the exact style URL the user selected
+        // Queue both the street map and the satellite map
+        downloadQueue.clear()
+        downloadQueue.add(MainActivity.STREET_STYLE)
+        downloadQueue.add(MainActivity.getSatelliteStyleUrl(this))
+        
+        downloadNextInQueue(minZoom, maxZoom, pixelRatio, bounds)
+    }
+
+    private fun downloadNextInQueue(minZoom: Double, maxZoom: Double, pixelRatio: Float, bounds: LatLngBounds) {
+        if (downloadQueue.isEmpty()) {
+            runOnUiThread {
+                progressDownload.visibility = View.GONE
+                tvStatus.text = "Both maps saved successfully!"
+                Toast.makeText(this@OfflineMapActivity, "Saved for Offline", Toast.LENGTH_LONG).show()
+                resetDrawMode()
+                btnDrawMode.isEnabled = true
+            }
+            return
+        }
+
+        val currentStyle = downloadQueue.removeAt(0)
+        val mapTypeName = if(currentStyle.contains("satellite")) "Satellite" else "Street"
+        
         val definition = OfflineTilePyramidRegionDefinition(
-            passedStyleUrl, bounds, minZoom, maxZoom, pixelRatio
+            currentStyle, bounds, minZoom, maxZoom, pixelRatio
         )
 
-        val mapTypeName = if(passedStyleUrl.contains("satellite")) "Satellite" else "Street"
-        val metadata = "$mapTypeName Custom Box Region".toByteArray(Charsets.UTF_8)
-
-        btnDownload.isEnabled = false
-        btnDrawMode.isEnabled = false
-        progressDownload.visibility = View.VISIBLE
-        tvStatus.text = "Downloading tiles..."
+        val metadata = "$mapTypeName Region".toByteArray(Charsets.UTF_8)
+        tvStatus.text = "Downloading $mapTypeName..."
 
         val offlineManager = OfflineManager.getInstance(this)
         offlineManager.createOfflineRegion(definition, metadata, object : OfflineManager.CreateOfflineRegionCallback {
@@ -184,16 +235,13 @@ class OfflineMapActivity : AppCompatActivity() {
 
                         runOnUiThread {
                             progressDownload.progress = percentage
-                            tvStatus.text = "Downloading $mapTypeName: $percentage% (${status.completedResourceCount}/${status.requiredResourceCount})"
+                            tvStatus.text = "Downloading $mapTypeName: $percentage%"
                         }
 
                         if (status.isComplete) {
+                            // When one map finishes, move on to the next map in the queue!
                             runOnUiThread {
-                                progressDownload.visibility = View.GONE
-                                btnDownload.isEnabled = true
-                                btnDrawMode.isEnabled = true
-                                tvStatus.text = "Map saved successfully!"
-                                Toast.makeText(this@OfflineMapActivity, "Saved for Offline", Toast.LENGTH_SHORT).show()
+                                downloadNextInQueue(minZoom, maxZoom, pixelRatio, bounds)
                             }
                         }
                     }

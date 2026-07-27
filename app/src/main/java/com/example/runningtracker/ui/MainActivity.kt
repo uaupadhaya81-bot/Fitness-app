@@ -361,6 +361,7 @@ class MainActivity : AppCompatActivity() {
         fun getSatelliteStyleUrl(context: Context): String {
             val file = File(context.cacheDir, "satellite_style.json")
             if (!file.exists()) {
+                // FIX: Added "maxzoom": 18 to the esri-satellite source so it stops requesting dead tiles
                 file.writeText("""
                     {
                       "version": 8,
@@ -368,7 +369,8 @@ class MainActivity : AppCompatActivity() {
                         "esri-satellite": {
                           "type": "raster",
                           "tiles": ["https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"],
-                          "tileSize": 256
+                          "tileSize": 256,
+                          "maxzoom": 18
                         }
                       },
                       "layers": [{
