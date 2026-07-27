@@ -175,6 +175,7 @@ class TrackingService : Service() {
         // Start Google Fused Location Tracking
         val locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 1000L)
             .setMinUpdateIntervalMillis(1000L)
+            .setMaxUpdateDelayMillis(0L)
             .build()
             
         fusedLocationClient.requestLocationUpdates(

@@ -3,13 +3,13 @@ package com.example.runningtracker.data.filter
 import android.location.Location
 import java.util.LinkedList
 
-class WeightedMovingAverageFilter(private val windowSize: Int = 5) {
+class WeightedMovingAverageFilter(private val windowSize: Int = 2) {
 
     private val window: LinkedList<Location> = LinkedList()
 
     fun filter(location: Location): Location? {
         if (location.accuracy > 50.0f) {
-            return location 
+            return null
         }
 
         window.addLast(location)
